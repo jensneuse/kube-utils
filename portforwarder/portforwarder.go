@@ -33,13 +33,13 @@ import (
 )
 
 //New returns a tunnel to the server pod.
-func New(clientset *kubernetes.Clientset, config *rest.Config, namespace string, podName string, remotePort, localPort int) (*Tunnel, error) {
-	pod, err := clientset.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+func New(clientSet kubernetes.Interface, config *rest.Config, namespace string, podName string, remotePort, localPort int) (*Tunnel, error) {
+	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	t := NewTunnel(clientset.CoreV1().RESTClient(), config, namespace, pod.ObjectMeta.GetName(), remotePort)
+	t := NewTunnel(clientSet, config, namespace, pod.ObjectMeta.GetName(), remotePort)
 	return t, t.ForwardPort(localPort)
 }
 
@@ -53,14 +53,14 @@ type Tunnel struct {
 	stopChan  chan struct{}
 	readyChan chan struct{}
 	config    *rest.Config
-	client    rest.Interface
+	client    kubernetes.Interface
 }
 
 // NewTunnel creates a new tunnel
-func NewTunnel(client rest.Interface, config *rest.Config, namespace, podName string, remote int) *Tunnel {
+func NewTunnel(clientSet kubernetes.Interface, config *rest.Config, namespace, podName string, remote int) *Tunnel {
 	return &Tunnel{
 		config:    config,
-		client:    client,
+		client:    clientSet,
 		Namespace: namespace,
 		PodName:   podName,
 		Remote:    remote,
@@ -80,7 +80,7 @@ func (t *Tunnel) Close() {
 func (t *Tunnel) ForwardPort(localPort int) error {
 	// Build a url to the portforward endpoint
 	// example: http://localhost:8080/api/v1/namespaces/helm/pods/tiller-deploy-9itlq/portforward
-	u := t.client.Post().
+	u := t.client.ExtensionsV1beta1().RESTClient().Post().
 		Resource("pods").
 		Namespace(t.Namespace).
 		Name(t.PodName).
