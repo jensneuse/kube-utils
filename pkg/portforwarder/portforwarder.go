@@ -23,13 +23,13 @@ import (
 	"net/http"
 	"strconv"
 
+	"fmt"
+	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
-	"k8s.io/client-go/kubernetes"
-	"io/ioutil"
-	"fmt"
 )
 
 //New returns a tunnel to the server pod.
