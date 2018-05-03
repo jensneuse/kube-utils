@@ -18,27 +18,26 @@ limitations under the License.
 */
 
 import (
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
 
-	"fmt"
-	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 )
 
-//New returns a tunnel to the server pod.
-func New(clientSet kubernetes.Interface, config *rest.Config, namespace string, podName string, remotePort, localPort int) (*Tunnel, error) {
-	t := NewTunnel(clientSet, config, namespace, podName, remotePort)
-	return t, t.ForwardPort(localPort)
+type Tunnel interface {
+	Close()
 }
 
-// Tunnel describes a ssh-like tunnel to a kubernetes pod
-type Tunnel struct {
+// tunnel describes a ssh-like tunnel to a kubernetes pod
+type tunnel struct {
 	Local     int
 	Remote    int
 	Namespace string
@@ -47,14 +46,30 @@ type Tunnel struct {
 	stopChan  chan struct{}
 	readyChan chan struct{}
 	config    *rest.Config
-	client    kubernetes.Interface
+	client    rest.Interface
+}
+
+// Close disconnects a tunnel connection
+func (t *tunnel) Close() {
+	close(t.stopChan)
+}
+
+//New returns a tunnel to the server pod.
+func New(clientSet *kubernetes.Clientset, config *rest.Config, namespace, podName string, remotePort, localPort int) (Tunnel, error) {
+	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	t := newTunnel(clientSet.CoreV1().RESTClient(), config, namespace, pod.ObjectMeta.GetName(), remotePort)
+	return t, t.forwardPort(localPort)
 }
 
 // NewTunnel creates a new tunnel
-func NewTunnel(clientSet kubernetes.Interface, config *rest.Config, namespace, podName string, remote int) *Tunnel {
-	return &Tunnel{
+func newTunnel(client rest.Interface, config *rest.Config, namespace, podName string, remote int) *tunnel {
+	return &tunnel{
 		config:    config,
-		client:    clientSet,
+		client:    client,
 		Namespace: namespace,
 		PodName:   podName,
 		Remote:    remote,
@@ -64,17 +79,11 @@ func NewTunnel(clientSet kubernetes.Interface, config *rest.Config, namespace, p
 	}
 }
 
-// Close disconnects a tunnel connection
-func (t *Tunnel) Close() {
-	close(t.stopChan)
-	close(t.readyChan)
-}
-
-// ForwardPort opens a tunnel to a kubernetes pod
-func (t *Tunnel) ForwardPort(localPort int) error {
+// forwardPort opens a tunnel to a kubernetes pod
+func (t *tunnel) forwardPort(localPort int) error {
 	// Build a url to the portforward endpoint
 	// example: http://localhost:8080/api/v1/namespaces/helm/pods/tiller-deploy-9itlq/portforward
-	u := t.client.ExtensionsV1beta1().RESTClient().Post().
+	u := t.client.Post().
 		Resource("pods").
 		Namespace(t.Namespace).
 		Name(t.PodName).
