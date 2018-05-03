@@ -25,7 +25,6 @@ import (
 
 	"fmt"
 	"io/ioutil"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -34,12 +33,7 @@ import (
 
 //New returns a tunnel to the server pod.
 func New(clientSet kubernetes.Interface, config *rest.Config, namespace string, podName string, remotePort, localPort int) (*Tunnel, error) {
-	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	t := NewTunnel(clientSet, config, namespace, pod.ObjectMeta.GetName(), remotePort)
+	t := NewTunnel(clientSet, config, namespace, podName, remotePort)
 	return t, t.ForwardPort(localPort)
 }
 
