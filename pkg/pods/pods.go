@@ -39,7 +39,7 @@ func CreateAndForwardBlocking(client *kubernetes.Clientset, config *rest.Config,
 			//time.Sleep(time.Second)
 
 			opts := readiness.Opts{
-				Namespace: namespace,
+				Namespace: template.Pod.Namespace,
 				PodName:   template.Pod.Name,
 			}
 
@@ -49,7 +49,7 @@ func CreateAndForwardBlocking(client *kubernetes.Clientset, config *rest.Config,
 				return
 			}
 
-			tunnel, err := portforwarder.New(client, config, namespace, template.Pod.Name, template.RemotePort, template.LocalPort)
+			tunnel, err := portforwarder.New(client, config, template.Pod, template.RemotePort, template.LocalPort)
 			if err != nil {
 				errChan <- err
 				return
