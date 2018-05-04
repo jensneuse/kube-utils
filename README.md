@@ -6,30 +6,29 @@ Works for both client side and in-cluster testing.
 Lets say you'd like to spin up your test environment, run integration tests and cleanup everything, this is all you have to do:
 
 ```go
-func TestLazy(t *testing.T) {
+func TestMinioTemplate(t *testing.T) {
 
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
 
-	namespace := "jens-neuse"
-	podName := "minio-test-123"
+	podName := "minio-simple-test"
 	endpoint := "localhost:9000"
 	accessKey := "AKIAIOSFODNN7EXAMPLE"
 	secretKey := "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
-	lazy := New()
+	l := New()
 
-	g.Describe("lazy", func() {
+	g.Describe("minio", func() {
 
 		g.After(func() {
 			// tear down
-			lazy.Cleanup()
+			l.Cleanup()
 		})
 
-		g.It("should have provided a minio pod, ready to connect", func() {
+		g.It("should be ready to connect", func() {
 
 			// request whatever we need
-			lazy.CreateAndForwardMinioBlocking(namespace, podName, accessKey, secretKey)
+			l.CreateAndForwardMinio(config.NAMESPACE, podName, accessKey, secretKey)
 
 			minioClient, err := minio.New(endpoint, accessKey, secretKey, false)
 			if err != nil {
@@ -44,6 +43,58 @@ func TestLazy(t *testing.T) {
 	})
 }
 ```
+
+Your environment might be a bit more complex. Working with multiple pods is as easy as:
+
+````go
+func TestCreateAndForwardPods(t *testing.T) {
+	g := Goblin(t)
+	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
+
+	g.Describe("CreateAndForwardPods", func() {
+
+		l := New()
+
+		g.After(func() {
+			l.Cleanup()
+		})
+
+		minioPodName := "minio-multitest"
+		endpoint := "localhost:9000"
+		accessKey := "AKIAIOSFODNN7EXAMPLE"
+		secretKey := "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+		postgresPodName := "postgres-multitest"
+		dsn := "postgresql://postgres@localhost:15432/postgres?sslmode=disable"
+
+		g.It("should provide minio + postgres", func() {
+			l.CreateAndForwardPods(config.NAMESPACE,
+				podtemplates.Minio(minioPodName, accessKey, secretKey),
+				podtemplates.Postgresql(postgresPodName),
+			)
+
+			minioClient, err := minio.New(endpoint, accessKey, secretKey, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = minioClient.ListBuckets()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			db, err := sql.Open("postgres", dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer db.Close()
+
+			Expect(db.Ping()).To(BeNil())
+		})
+	})
+}
+````
 
 ## Running tests
 
