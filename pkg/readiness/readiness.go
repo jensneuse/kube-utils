@@ -94,7 +94,7 @@ func blockUntilPodExists(client *kubernetes.Clientset, context context.Context, 
 				break
 			}
 
-			if pod != nil {
+			if pod != nil && pod.Status.Phase != v1.PodPending {
 				close(exists)
 				break
 			}
