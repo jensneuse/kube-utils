@@ -7,13 +7,13 @@ import (
 )
 
 // Postgresql Database on default port (5432)
-func Postgresql() *PodTemplate {
+func Postgresql(podName string) *PodTemplate {
 	return &PodTemplate{
 		LocalPort:  15432,
 		RemotePort: 5432,
 		Pod: &v1.Pod{
 			ObjectMeta: metaV1.ObjectMeta{
-				Name: "integration-test-database",
+				Name: podName,
 			},
 			Spec: v1.PodSpec{
 				Containers: []v1.Container{
