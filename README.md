@@ -5,7 +5,8 @@ Works for both client side and in-cluster testing.
 
 Lets say you'd like to spin up your test environment, run integration tests and cleanup everything, this is all you have to do:
 
-`func TestLazy(t *testing.T) {
+```go
+func TestLazy(t *testing.T) {
 
 	g := Goblin(t)
 	RegisterFailHandler(func(m string, _ ...int) { g.Fail(m) })
@@ -41,4 +42,5 @@ Lets say you'd like to spin up your test environment, run integration tests and 
 			}
 		})
 	})
-}`
+}
+```
