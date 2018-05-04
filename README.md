@@ -44,3 +44,14 @@ func TestLazy(t *testing.T) {
 	})
 }
 ```
+
+## Running tests
+
+````bash
+go test ./pkg/... -namespace=default
+````
+
+## Contributions
+
+Feel free to submit additions (e.g. more pod templates) via pull requests.
+Don't forget to add tests.
