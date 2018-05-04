@@ -50,7 +50,7 @@ func (l *Lazy) Cleanup() error {
 	return nil
 }
 
-func (l *Lazy) CreateAndForwardPodsBlocking(namespace string, templates ...*podtemplates.PodTemplate) []pods.Result {
+func (l *Lazy) CreateAndForwardPods(namespace string, templates ...*podtemplates.PodTemplate) []pods.Result {
 	results, err := pods.CreateAndForwardBlocking(l.clientSet, l.config, namespace, templates...)
 	if err != nil {
 		log.Panic(err)
@@ -59,8 +59,14 @@ func (l *Lazy) CreateAndForwardPodsBlocking(namespace string, templates ...*podt
 	return results
 }
 
-func (l *Lazy) CreateAndForwardMinioBlocking(namespace, podName, accessKey, secretKey string) pods.Result {
+func (l *Lazy) CreateAndForwardMinio(namespace, podName, accessKey, secretKey string) pods.Result {
 	results, err := pods.CreateAndForwardBlocking(l.clientSet, l.config, namespace, podtemplates.Minio(podName, accessKey, secretKey))
+	l.results = append(l.results, results...)
+	return first(results, err)
+}
+
+func (l *Lazy) CreateAndForwardPostgres(namespace, podName string) pods.Result {
+	results, err := pods.CreateAndForwardBlocking(l.clientSet, l.config, namespace, podtemplates.Postgresql(podName))
 	l.results = append(l.results, results...)
 	return first(results, err)
 }
