@@ -1,4 +1,4 @@
-package integrationtesting
+package pods
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sync"
-	"time"
 )
 
 type Result struct {
@@ -17,7 +16,7 @@ type Result struct {
 	Pod    *v1.Pod
 }
 
-func CreateAndForwardPodsBlocking(client *kubernetes.Clientset, config *rest.Config, namespace string, templates ...*podtemplates.PodTemplate) ([]Result, error) {
+func CreateAndForwardBlocking(client *kubernetes.Clientset, config *rest.Config, namespace string, templates ...*podtemplates.PodTemplate) ([]Result, error) {
 
 	var wg sync.WaitGroup
 	errChan := make(chan error)
@@ -26,24 +25,25 @@ func CreateAndForwardPodsBlocking(client *kubernetes.Clientset, config *rest.Con
 
 	for _, template := range templates {
 
-		var err error
-		template.Pod, err = client.CoreV1().Pods(namespace).Create(template.Pod)
-		if err != nil {
-			return nil, err
-		}
-
 		wg.Add(1)
 		go func(template *podtemplates.PodTemplate) {
 
-			defer wg.Done()
+			var err error
+			template.Pod, err = client.CoreV1().Pods(namespace).Create(template.Pod)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			// wait 1 second for resource to become available
+			//time.Sleep(time.Second)
 
 			opts := readiness.Opts{
 				Namespace: namespace,
 				PodName:   template.Pod.Name,
 			}
 
-			time.Sleep(time.Second)
-			err := readiness.BlockUntilPodReady(client, context.Background(), opts)
+			err = readiness.BlockUntilPodReady(client, context.Background(), opts)
 			if err != nil {
 				errChan <- err
 				return
@@ -61,6 +61,7 @@ func CreateAndForwardPodsBlocking(client *kubernetes.Clientset, config *rest.Con
 			}
 
 			resultChan <- result
+			wg.Done()
 
 		}(template)
 	}
