@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"strconv"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -40,8 +40,7 @@ type Tunnel interface {
 type tunnel struct {
 	Local     int
 	Remote    int
-	Namespace string
-	PodName   string
+	Pod       *v1.Pod
 	Out       io.Writer
 	stopChan  chan struct{}
 	readyChan chan struct{}
@@ -55,23 +54,17 @@ func (t *tunnel) Close() {
 }
 
 //New returns a tunnel to the server pod.
-func New(clientSet *kubernetes.Clientset, config *rest.Config, namespace, podName string, remotePort, localPort int) (Tunnel, error) {
-	pod, err := clientSet.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	t := newTunnel(clientSet.CoreV1().RESTClient(), config, namespace, pod.ObjectMeta.GetName(), remotePort)
+func New(clientSet *kubernetes.Clientset, config *rest.Config, pod *v1.Pod, remotePort, localPort int) (Tunnel, error) {
+	t := newTunnel(clientSet.CoreV1().RESTClient(), config, pod, remotePort)
 	return t, t.forwardPort(localPort)
 }
 
 // NewTunnel creates a new tunnel
-func newTunnel(client rest.Interface, config *rest.Config, namespace, podName string, remote int) *tunnel {
+func newTunnel(client rest.Interface, config *rest.Config, pod *v1.Pod, remote int) *tunnel {
 	return &tunnel{
 		config:    config,
 		client:    client,
-		Namespace: namespace,
-		PodName:   podName,
+		Pod:       pod,
 		Remote:    remote,
 		stopChan:  make(chan struct{}, 1),
 		readyChan: make(chan struct{}, 1),
@@ -85,8 +78,8 @@ func (t *tunnel) forwardPort(localPort int) error {
 	// example: http://localhost:8080/api/v1/namespaces/helm/pods/tiller-deploy-9itlq/portforward
 	u := t.client.Post().
 		Resource("pods").
-		Namespace(t.Namespace).
-		Name(t.PodName).
+		Namespace(t.Pod.Namespace).
+		Name(t.Pod.Name).
 		SubResource("portforward").URL()
 
 	transport, upgrader, err := spdy.RoundTripperFor(t.config)
