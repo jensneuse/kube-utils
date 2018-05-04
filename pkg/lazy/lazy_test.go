@@ -22,6 +22,11 @@ func TestLazy(t *testing.T) {
 
 	g.Describe("lazy", func() {
 
+		g.After(func() {
+			// tear down
+			lazy.Cleanup()
+		})
+
 		g.It("should have provided a minio pod, ready to connect", func() {
 
 			// request whatever we need
@@ -36,9 +41,6 @@ func TestLazy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			// tear down
-			lazy.Cleanup()
 		})
 	})
 }
