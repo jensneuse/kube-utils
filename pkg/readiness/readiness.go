@@ -7,6 +7,7 @@ import (
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"time"
 )
 
 type Opts struct {
@@ -35,6 +36,11 @@ func BlockUntilPodReady(client *kubernetes.Clientset, context context.Context, o
 		return err
 	}
 
+	err = blockUntilPodExists(client, context, opts)
+	if err != nil {
+		return err
+	}
+
 	watcher, err := client.
 		CoreV1().
 		Pods(opts.Namespace).
@@ -47,7 +53,7 @@ func BlockUntilPodReady(client *kubernetes.Clientset, context context.Context, o
 	for {
 		select {
 		case <-context.Done():
-			return errors.New("timeout reached")
+			return errors.New("context cancelled/timeout")
 		case event, ok := <-watcher.ResultChan():
 
 			if !ok {
@@ -65,31 +71,51 @@ func BlockUntilPodReady(client *kubernetes.Clientset, context context.Context, o
 	}
 }
 
-func SignalPodReady(client *kubernetes.Clientset, context context.Context, opts Opts) chan error {
-
-	ch := make(chan error)
-
-	go func() {
-		err := BlockUntilPodReady(client, context, opts)
-		if err != nil {
-			ch <- err
-		}
-
-		close(ch)
-	}()
-
-	return ch
-}
-
 type Ready bool
 
 func isPodReady(pod *v1.Pod) Ready {
 	for _, containerStatus := range pod.Status.ContainerStatuses {
 		if !containerStatus.Ready {
-			fmt.Printf("ContainerState: %s\n", containerStatus.String())
 			return false
 		}
 	}
 
 	return true
+}
+
+func blockUntilPodExists(client *kubernetes.Clientset, context context.Context, opts Opts) error {
+
+	exists := make(chan error)
+
+	go func() {
+		for {
+			pod, err := client.CoreV1().Pods(opts.Namespace).Get(opts.PodName, metaV1.GetOptions{})
+			if err != nil {
+				exists <- err
+				break
+			}
+
+			if pod != nil {
+				close(exists)
+				break
+			}
+
+			time.Sleep(time.Millisecond * time.Duration(200))
+		}
+	}()
+
+	select {
+	case <-context.Done():
+		return errors.New("context cancelled/timeout")
+	case err, ok := <-exists:
+		if err != nil {
+			return err
+		}
+
+		if ok {
+			return errors.New("unintended")
+		}
+
+		return nil
+	}
 }
