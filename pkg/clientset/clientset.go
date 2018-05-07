@@ -13,9 +13,15 @@ import (
 func New(kubeConfigPath string) (*rest.Config, *kubernetes.Clientset, error) {
 
 	if kubeConfigPath == "" {
-		kubeConfigPath = filepath.Join(
-			os.Getenv("HOME"), ".kube", "config",
-		)
+
+		var exists bool
+		kubeConfigPath, exists = os.LookupEnv("KUBECONFIG")
+
+		if !exists {
+			kubeConfigPath = filepath.Join(
+				os.Getenv("HOME"), ".kube", "config",
+			)
+		}
 	}
 
 	config, err := localConfig(kubeConfigPath)
